@@ -4,7 +4,7 @@
 ## AnyKernel setup
 # begin properties
 properties() { '
-kernel.string=GhostKernelOSS for POCO F7 (onyx) | Snapdragon 8s Gen 4 (SM8735 / Tuna LE) | 6.6.82
+kernel.string=GhostKernelOSS by Zarathos30
 do.devicecheck=1
 do.modules=0
 do.systemless=1
@@ -32,6 +32,16 @@ no_block_display=1;
 . tools/ak3-core.sh;
 
 ## AnyKernel functions
+# GhostKernelOSS banner
+ui_print ' ';
+ui_print '   ___ _           _   _  __                 _  ___  ___ ___ ';
+ui_print '  / __| |_  ___ __| |_| |/ /___ _ _ _ _  ___| |/ _ \/ __/ __|';
+ui_print '| (_ | '\'' \/ _ (_-<  _| | '\'' </ -_) '\''_| '\'' \/ -_) | (_) \__ \__ \';
+ui_print '  \___|_||_\___/__/\__|_|\_\___|_| |_||_\___|_|\___/|___/___/';
+ui_print ' ';
+ui_print 'GhostKernelOSS by Zarathos30 | POCO F7 (onyx) | SM8735';
+ui_print ' ';
+
 # dump boot and extract ramdisk
 dump_boot;
 

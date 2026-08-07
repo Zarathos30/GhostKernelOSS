@@ -75,6 +75,11 @@ echo "==> Generating merged defconfig (generic_le_defconfig + fragments)"
 grep -q "CONFIG_ARCH_TUNA=y" "$OUT_DIR/.config" \
   || { echo "ERROR: CONFIG_ARCH_TUNA not enabled in merged config" >&2; exit 1; }
 
+# Kernel name shown in Settings -> About -> Kernel version (replaces stock "-perf")
+KERNEL_LOCALVERSION=${KERNEL_LOCALVERSION:--GhostKernelOSS}
+echo "==> Setting kernel name (CONFIG_LOCALVERSION) to: $KERNEL_LOCALVERSION"
+"$KERNEL_DIR/scripts/config" --file "$OUT_DIR/.config" --set-str LOCALVERSION "$KERNEL_LOCALVERSION"
+
 # Device trees require dt-bindings headers shipped in the out-of-tree vendor
 # module sources (camera/audio/synx); build dtbs only when they are available.
 HAS_DTB=0
