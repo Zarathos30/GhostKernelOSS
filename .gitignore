@@ -1,0 +1,20 @@
+# build outputs
+out/
+dist/*.zip
+*.tar.gz
+*.log
+
+# ccache
+.ccache/
+
+# toolchains (not committed)
+prebuilts/
+
+# kernel sources (fetched by CI from Zarathos30 repos)
+xiaomi/sm8735/
+xiaomi/sm8735-devicetrees/
+xiaomi/sm8735-modules/
+
+# editor
+.vscode/
+.idea/

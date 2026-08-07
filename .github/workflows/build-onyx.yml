@@ -1,0 +1,226 @@
+name: Build GhostKernelOSS (POCO F7 / onyx)
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_repo:
+        description: 'GitHub repo of the kernel source (used only if xiaomi/sm8735 is not committed in this repo)'
+        required: false
+        default: 'Zarathos30/android_kernel_xiaomi_sm8735'
+      kernel_ref:
+        description: 'Branch or tag of the kernel source'
+        required: false
+        default: 'lineage-23.2'
+      devicetrees_repo:
+        description: 'GitHub repo of the device trees (used only if xiaomi/sm8735-devicetrees is not committed)'
+        required: false
+        default: 'Zarathos30/android_kernel_xiaomi_sm8735-devicetrees'
+      devicetrees_ref:
+        description: 'Branch or tag of the device trees'
+        required: false
+        default: 'lineage-23.2'
+      modules_repo:
+        description: 'GitHub repo of the vendor modules (needed to rebuild dtb/dtbo)'
+        required: false
+        default: 'Zarathos30/android_kernel_xiaomi_sm8735-modules'
+      modules_ref:
+        description: 'Branch or tag of the vendor modules'
+        required: false
+        default: 'lineage-23.2'
+      version_tag:
+        description: 'Optional suffix for the zip name, e.g. -v1'
+        required: false
+        default: ''
+      clang_version:
+        description: 'AOSP clang prebuilt version'
+        required: false
+        default: 'r547379'
+      do_release:
+        description: 'Create a GitHub Release with the zip'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-onyx
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build kernel + AnyKernel3 zip
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 8G
+      CCACHE_COMPRESS: '1'
+      CCACHE_COMPRESSLEVEL: '6'
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: 'true'
+
+    steps:
+      - name: Checkout GhostKernelOSS builder
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            git curl ca-certificates build-essential flex bison bc cpio \
+            libssl-dev libncurses-dev zlib1g-dev lz4 xz-utils zstd \
+            python3 file kmod zip unzip ccache
+          sudo apt-get clean
+
+      - name: Download kernel source (if not committed)
+        run: |
+          set -euo pipefail
+          if [ -f xiaomi/sm8735/Makefile ]; then
+            echo "Using kernel source committed in this repo"
+          else
+            URL="https://codeload.github.com/${{ inputs.kernel_repo }}/tar.gz/refs/heads/${{ inputs.kernel_ref }}"
+            echo "Downloading $URL"
+            curl -fL --retry 3 --retry-delay 5 -o kernel-src.tar.gz "$URL" \
+              || curl -fL --retry 3 --retry-delay 5 -o kernel-src.tar.gz \
+                   "https://codeload.github.com/${{ inputs.kernel_repo }}/tar.gz/refs/tags/${{ inputs.kernel_ref }}"
+            mkdir -p _kernel_extract xiaomi
+            tar -xzf kernel-src.tar.gz -C _kernel_extract
+            mv _kernel_extract/* xiaomi/sm8735
+            test -f xiaomi/sm8735/Makefile
+          fi
+          KERNEL_VER=$(grep -E '^VERSION\s*=|^PATCHLEVEL\s*=|^SUBLEVEL\s*=' xiaomi/sm8735/Makefile | awk '{print $3}' | paste -sd.)
+          echo "KERNEL_VER=$KERNEL_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare device trees (fix vendor dts symlink)
+        run: |
+          set -euo pipefail
+          KERNEL_DIR="$GITHUB_WORKSPACE/xiaomi/sm8735"
+          if [ -d "$KERNEL_DIR/arch/arm64/boot/dts/vendor/qcom" ]; then
+            echo "Device trees already present"
+          else
+            if [ -f xiaomi/sm8735-devicetrees/qcom/Makefile ]; then
+              echo "Using device trees committed in this repo"
+            else
+              URL="https://codeload.github.com/${{ inputs.devicetrees_repo }}/tar.gz/refs/heads/${{ inputs.devicetrees_ref }}"
+              echo "Downloading $URL"
+              curl -fL --retry 3 --retry-delay 5 -o devicetrees.tar.gz "$URL" \
+                || curl -fL --retry 3 --retry-delay 5 -o devicetrees.tar.gz \
+                     "https://codeload.github.com/${{ inputs.devicetrees_repo }}/tar.gz/refs/tags/${{ inputs.devicetrees_ref }}"
+              mkdir -p xiaomi/sm8735-devicetrees
+              tar -xzf devicetrees.tar.gz -C xiaomi/sm8735-devicetrees --strip-components=1
+            fi
+            test -f xiaomi/sm8735-devicetrees/qcom/Makefile
+            rm -f "$KERNEL_DIR/arch/arm64/boot/dts/vendor"
+            ln -s ../../../../../sm8735-devicetrees "$KERNEL_DIR/arch/arm64/boot/dts/vendor"
+          fi
+          test -d "$KERNEL_DIR/arch/arm64/boot/dts/vendor/qcom"
+
+      - name: Download vendor modules (for dtb/dtbo rebuild)
+        if: ${{ inputs.modules_repo != '' }}
+        run: |
+          set -euo pipefail
+          URL="https://codeload.github.com/${{ inputs.modules_repo }}/tar.gz/refs/heads/${{ inputs.modules_ref }}"
+          echo "Downloading $URL"
+          curl -fL --retry 3 --retry-delay 5 -o modules.tar.gz "$URL" \
+            || curl -fL --retry 3 --retry-delay 5 -o modules.tar.gz \
+                 "https://codeload.github.com/${{ inputs.modules_repo }}/tar.gz/refs/tags/${{ inputs.modules_ref }}"
+          mkdir -p xiaomi/sm8735-modules
+          tar -xzf modules.tar.gz -C xiaomi/sm8735-modules --strip-components=1
+          test -d xiaomi/sm8735-modules/qcom/opensource
+
+      - name: Download AOSP clang prebuilt
+        run: |
+          set -euo pipefail
+          CLANG_VER="${{ inputs.clang_version }}"
+          mkdir -p prebuilts/clang/host/linux-x86
+          cd prebuilts/clang/host/linux-x86
+          git init -q
+          git remote add origin https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86
+          git sparse-checkout init --no-cone
+          git sparse-checkout set "clang-${CLANG_VER}"
+          git fetch --quiet --filter=blob:none --depth 1 origin main:refs/remotes/origin/main
+          git checkout --quiet origin/main
+          test -x "clang-${CLANG_VER}/bin/clang"
+          "clang-${CLANG_VER}/bin/clang" --version | head -n1
+
+      - name: Download mkdtboimg (kernel build-tools)
+        run: |
+          set -euo pipefail
+          mkdir -p prebuilts/kernel-build-tools
+          cd prebuilts/kernel-build-tools
+          git init -q
+          git remote add origin https://android.googlesource.com/kernel/prebuilts/build-tools
+          git sparse-checkout init --no-cone
+          git sparse-checkout set linux_musl-x86
+          git fetch --quiet --filter=blob:none --depth 1 origin main:refs/remotes/origin/main
+          git checkout --quiet origin/main
+          test -x linux_musl-x86/bin/mkdtboimg
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-onyx-${{ github.run_id }}
+          restore-keys: |
+            ccache-onyx-
+
+      - name: Build kernel
+        id: build
+        timeout-minutes: 300
+        env:
+          KERNEL_DIR: ${{ github.workspace }}/xiaomi/sm8735
+          CLANG_DIR: ${{ github.workspace }}/prebuilts/clang/host/linux-x86/clang-${{ inputs.clang_version }}
+          OUT_DIR: ${{ github.workspace }}/xiaomi/sm8735/out
+          MODULES_DIR: ${{ github.workspace }}/xiaomi/sm8735-modules
+          CCACHE: '1'
+        run: |
+          bash scripts/build_kernel.sh 2>&1 | tee build.log
+          tail -3 build.log
+
+      - name: Pack AnyKernel3 zip
+        id: pack
+        env:
+          OUT_DIR: ${{ github.workspace }}/xiaomi/sm8735/out
+          MKDTBOIMG: ${{ github.workspace }}/prebuilts/kernel-build-tools/linux_musl-x86/bin/mkdtboimg
+          ZIP_SUFFIX: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          bash scripts/pack_anykernel.sh
+          ZIP_PATH=$(ls "$OUT_DIR"/GhostKernelOSS-onyx-*.zip | head -n1)
+          echo "ZIP_PATH=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+          echo "ZIP_NAME=$(basename "$ZIP_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Save ccache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-onyx-${{ github.run_id }}
+
+      - name: Upload flashable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pack.outputs.ZIP_NAME }}
+          path: ${{ steps.pack.outputs.ZIP_PATH }}
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-onyx-${{ steps.kernel.outputs.KERNEL_VER }}
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Create GitHub Release
+        if: ${{ inputs.do_release == true }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: onyx-${{ steps.kernel.outputs.KERNEL_VER }}${{ inputs.version_tag }}
+          name: GhostKernelOSS onyx ${{ steps.kernel.outputs.KERNEL_VER }}${{ inputs.version_tag }}
+          generate_release_notes: false
+          files: |
+            ${{ steps.pack.outputs.ZIP_PATH }}
