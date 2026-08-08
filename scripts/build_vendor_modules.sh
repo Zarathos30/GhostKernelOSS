@@ -133,6 +133,15 @@ for entry in "${MODULES[@]}"; do
   fi
   kos=$(find "$moddir" -name "*.ko" 2>/dev/null | wc -l)
   echo "OK    $rel ($kos .ko)"
+  # Modules that build nothing (e.g. display-drivers with CONFIG_DRM_MSM=y
+  # built-in) produce no Module.symvers, but downstream modules modpost
+  # against that path; an empty file lets them resolve the symbols from the
+  # kernel's own Module.symvers instead.
+  [ -f "$moddir/Module.symvers" ] || touch "$moddir/Module.symvers"
+  if [ "$rel" = "qcom/opensource/display-drivers" ]; then
+    mkdir -p "$moddir/msm"
+    [ -f "$moddir/msm/Module.symvers" ] || touch "$moddir/msm/Module.symvers"
+  fi
   built=$((built+1))
 done
 
