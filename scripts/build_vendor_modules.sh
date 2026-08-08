@@ -51,32 +51,42 @@ if [ "${CCACHE:-0}" = "1" ] && command -v ccache >/dev/null 2>&1; then
   echo "==> ccache enabled"
 fi
 
-# Entries: "relative path under MODULES_DIR|make variable overrides"
+# Entries: "relative path under MODULES_DIR|make variable overrides|target"
+#   target: all     -> run the module's own Makefile (default for wrappers)
+#           direct  -> run make -C kernel M=<mod> directly (Kbuild-style dirs)
 # Order matters: KBUILD_EXTRA_SYMBOLS dependencies must build first.
 MODULES=(
-  "qcom/opensource/mm-drivers/hw_fence|"
-  "qcom/opensource/mmrm-driver|"
-  "qcom/opensource/securemsm-kernel|"
-  "qcom/opensource/synx-kernel|"
-  "qcom/opensource/mm-drivers/msm_ext_display|"
-  "qcom/opensource/dsp-kernel|"
-  "qcom/opensource/audio-kernel|CONFIG_SND_SOC_SUN=m"
-  "qcom/opensource/graphics-kernel|CONFIG_QCOM_KGSL=m"
-  "qcom/opensource/video-driver|"
-  "qcom/opensource/eva-kernel|"
-  "qcom/opensource/display-drivers|"
-  "qcom/opensource/touch-drivers|CONFIG_MSM_TOUCH=m"
-  "qcom/opensource/wlan/platform|"
-  "qcom/opensource/wlan/fw-api|"
-  "qcom/opensource/wlan/qca-wifi-host-cmn|"
-  "qcom/opensource/wlan/qcacld-3.0|CONFIG_QCA_CLD_WLAN=m"
-  "qcom/opensource/bt-kernel|CONFIG_MSM_BT_POWER=m CONFIG_BTFM_SLIM=m CONFIG_I2C_RTC6226_QCA=m CONFIG_BTFM_CODEC=m CONFIG_SLIM_BTFM_CODEC=m CONFIG_BTFM_SWR=m"
-  "qcom/opensource/camera-kernel|"
-  "qcom/opensource/dataipa|"
-  "qcom/opensource/datarmnet|"
-  "qcom/opensource/spu-kernel|CONFIG_MSM_SPCOM=m CONFIG_MSM_SPSS_UTILS=m"
-  "nxp/opensource/driver|"
+  "qcom/opensource/mm-drivers/hw_fence||all"
+  "qcom/opensource/mmrm-driver||all"
+  "qcom/opensource/securemsm-kernel||all"
+  "qcom/opensource/synx-kernel||all"
+  "qcom/opensource/mm-drivers/msm_ext_display||all"
+  "qcom/opensource/dsp-kernel||all"
+  "qcom/opensource/audio-kernel|CONFIG_SND_SOC_SUN=m|all"
+  "qcom/opensource/graphics-kernel|CONFIG_QCOM_KGSL=m|all"
+  "qcom/opensource/video-driver||all"
+  "qcom/opensource/eva-kernel||all"
+  "qcom/opensource/display-drivers||all"
+  "qcom/opensource/touch-drivers|CONFIG_MSM_TOUCH=m|all"
+  "qcom/opensource/data-kernel/drivers/smem-mailbox||all"
+  "qcom/opensource/wlan/platform||all"
+  "qcom/opensource/wlan/fw-api||all"
+  "qcom/opensource/wlan/qca-wifi-host-cmn||all"
+  "qcom/opensource/wlan/qcacld-3.0|CONFIG_QCA_CLD_WLAN=m|all"
+  "qcom/opensource/bt-kernel|CONFIG_MSM_BT_POWER=m CONFIG_BTFM_SLIM=m CONFIG_I2C_RTC6226_QCA=m CONFIG_BTFM_CODEC=m CONFIG_SLIM_BTFM_CODEC=m CONFIG_BTFM_SWR=m|all"
+  "qcom/opensource/camera-kernel||all"
+  "qcom/opensource/dataipa||direct"
+  "qcom/opensource/datarmnet||all"
+  "qcom/opensource/spu-kernel|CONFIG_MSM_SPCOM=m CONFIG_MSM_SPSS_UTILS=m|all"
+  "nxp/opensource/driver||all"
 )
+
+# The module Makefiles build roots like $(KERNEL_SRC)/$(M), so they expect M
+# relative to the kernel source tree, while kbuild resolves a relative M from
+# the object tree. An absolute symlink inside both trees makes both resolve.
+echo "==> Linking vendor modules tree (relative M)"
+ln -sfn "$MODULES_DIR" "$KERNEL_DIR/vendor-modules"
+ln -sfn "$MODULES_DIR" "$OUT_DIR/vendor-modules"
 
 LOG_DIR="$OUT_DIR/vendor-module-logs"
 mkdir -p "$LOG_DIR" "$MODULES_STAGE"
@@ -86,9 +96,9 @@ failed=0
 skipped=0
 
 for entry in "${MODULES[@]}"; do
-  rel="${entry%%|*}"
-  makevars="${entry#*|}"
+  IFS='|' read -r rel makevars tgt <<< "$entry"
   moddir="$MODULES_DIR/$rel"
+  M="vendor-modules/$rel"
   log="$LOG_DIR/$(basename "$rel").log"
 
   if [ ! -f "$moddir/Makefile" ] && [ ! -f "$moddir/Kbuild" ]; then
@@ -98,15 +108,28 @@ for entry in "${MODULES[@]}"; do
   fi
 
   echo "==> Building $rel ..."
-  if ! ( cd "$KERNEL_DIR"
-    make -C "$moddir" KERNEL_SRC="$KERNEL_DIR" O="$OUT_DIR" M="$moddir" "${CCACHE_ARGS[@]}" $makevars modules \
-      && make -C "$moddir" KERNEL_SRC="$KERNEL_DIR" O="$OUT_DIR" M="$moddir" "${CCACHE_ARGS[@]}" $makevars \
-         INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$MODULES_STAGE" modules_install
-  ) > "$log" 2>&1; then
-    echo "FAIL  $rel (log: $log)"
-    tail -30 "$log" | sed 's/^/      /'
-    failed=$((failed+1))
-    continue
+  if [ "$tgt" = "direct" ]; then
+    if ! ( cd "$KERNEL_DIR"
+      make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" M="$M" $makevars modules \
+        && make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" M="$M" $makevars \
+           INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$MODULES_STAGE" modules_install
+    ) > "$log" 2>&1; then
+      echo "FAIL  $rel (log: $log)"
+      tail -30 "$log" | sed 's/^/      /'
+      failed=$((failed+1))
+      continue
+    fi
+  else
+    if ! ( cd "$KERNEL_DIR"
+      make -C "$moddir" KERNEL_SRC="$KERNEL_DIR" O="$OUT_DIR" M="$M" "${CCACHE_ARGS[@]}" $makevars "$tgt" \
+        && make -C "$moddir" KERNEL_SRC="$KERNEL_DIR" O="$OUT_DIR" M="$M" "${CCACHE_ARGS[@]}" $makevars \
+           INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$MODULES_STAGE" modules_install
+    ) > "$log" 2>&1; then
+      echo "FAIL  $rel (log: $log)"
+      tail -30 "$log" | sed 's/^/      /'
+      failed=$((failed+1))
+      continue
+    fi
   fi
   kos=$(find "$moddir" -name "*.ko" 2>/dev/null | wc -l)
   echo "OK    $rel ($kos .ko)"
