@@ -66,7 +66,7 @@ MODULES=(
   "qcom/opensource/graphics-kernel|CONFIG_QCOM_KGSL=m|all"
   "qcom/opensource/video-driver||all"
   "qcom/opensource/eva-kernel||all"
-  "qcom/opensource/display-drivers||all"
+  "qcom/opensource/display-drivers|CONFIG_DRM_MSM=m|all"
   "qcom/opensource/touch-drivers|CONFIG_MSM_TOUCH=m|all"
   "qcom/opensource/data-kernel/drivers/smem-mailbox||all"
   "qcom/opensource/wlan/platform||all"
