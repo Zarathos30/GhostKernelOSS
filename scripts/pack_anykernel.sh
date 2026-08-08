@@ -60,15 +60,23 @@ fi
 if [ -n "${MODULES_STAGE:-}" ] && [ -d "$MODULES_STAGE/lib/modules" ]; then
   KVER_DIR=$(find "$MODULES_STAGE/lib/modules" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)
   if [ -n "$KVER_DIR" ]; then
-    ko_count=$(find "$KVER_DIR" -maxdepth 1 -name "*.ko" 2>/dev/null | wc -l)
+    ko_count=$(find "$KVER_DIR" -name "*.ko" 2>/dev/null | wc -l)
     if [ "$ko_count" -gt 0 ]; then
-      MODDIR="$STAGING_DIR/rdtmp/lib/modules/$(basename "$KVER_DIR")"
       echo "==> Adding $ko_count kernel modules to boot ramdisk (rdtmp overlay)"
-      mkdir -p "$MODDIR"
-      cp "$KVER_DIR"/*.ko "$MODDIR"/
-      echo "  + rdtmp/lib/modules/$(basename "$KVER_DIR")/"
+      mkdir -p "$STAGING_DIR/rdtmp"
+      ( cd "$MODULES_STAGE" && find lib/modules -name "*.ko" -exec cp --parents {} "$STAGING_DIR/rdtmp/" \; )
+      echo "  + rdtmp/lib/modules/$(basename "$KVER_DIR")/..."
+    else
+      echo "==> WARNING: modules staging exists but is empty ($KVER_DIR)"
+      echo "    no .ko shipped in this zip"
     fi
+  else
+    echo "==> WARNING: no module release dir under $MODULES_STAGE/lib/modules"
+    echo "    no .ko shipped in this zip"
   fi
+elif [ -n "${MODULES_STAGE:-}" ]; then
+  echo "==> WARNING: $MODULES_STAGE/lib/modules not found"
+  echo "    no .ko shipped in this zip"
 fi
 
 VERSION_TAG="${ZIP_SUFFIX:-}"

@@ -48,27 +48,27 @@ fi
 # Entries: "relative path under MODULES_DIR|make variable overrides"
 # Order matters: KBUILD_EXTRA_SYMBOLS dependencies must build first.
 MODULES=(
-  "mm-drivers/hw_fence|"
-  "mmrm-driver|"
-  "securemsm-kernel|"
-  "synx-kernel|"
-  "mm-drivers/msm_ext_display|"
-  "dsp-kernel|"
-  "audio-kernel|CONFIG_SND_SOC_SUN=m"
-  "graphics-kernel|CONFIG_QCOM_KGSL=m"
-  "video-driver|"
-  "eva-kernel|"
-  "display-drivers|"
-  "touch-drivers|CONFIG_MSM_TOUCH=m"
-  "wlan/platform|"
-  "wlan/fw-api|"
-  "wlan/qca-wifi-host-cmn|"
-  "wlan/qcacld-3.0|CONFIG_QCA_CLD_WLAN=m"
-  "bt-kernel|CONFIG_MSM_BT_POWER=m CONFIG_BTFM_SLIM=m CONFIG_I2C_RTC6226_QCA=m CONFIG_BTFM_CODEC=m CONFIG_SLIM_BTFM_CODEC=m CONFIG_BTFM_SWR=m"
-  "camera-kernel|"
-  "dataipa|"
-  "datarmnet|"
-  "spu-kernel|CONFIG_MSM_SPCOM=m CONFIG_MSM_SPSS_UTILS=m"
+  "qcom/opensource/mm-drivers/hw_fence|"
+  "qcom/opensource/mmrm-driver|"
+  "qcom/opensource/securemsm-kernel|"
+  "qcom/opensource/synx-kernel|"
+  "qcom/opensource/mm-drivers/msm_ext_display|"
+  "qcom/opensource/dsp-kernel|"
+  "qcom/opensource/audio-kernel|CONFIG_SND_SOC_SUN=m"
+  "qcom/opensource/graphics-kernel|CONFIG_QCOM_KGSL=m"
+  "qcom/opensource/video-driver|"
+  "qcom/opensource/eva-kernel|"
+  "qcom/opensource/display-drivers|"
+  "qcom/opensource/touch-drivers|CONFIG_MSM_TOUCH=m"
+  "qcom/opensource/wlan/platform|"
+  "qcom/opensource/wlan/fw-api|"
+  "qcom/opensource/wlan/qca-wifi-host-cmn|"
+  "qcom/opensource/wlan/qcacld-3.0|CONFIG_QCA_CLD_WLAN=m"
+  "qcom/opensource/bt-kernel|CONFIG_MSM_BT_POWER=m CONFIG_BTFM_SLIM=m CONFIG_I2C_RTC6226_QCA=m CONFIG_BTFM_CODEC=m CONFIG_SLIM_BTFM_CODEC=m CONFIG_BTFM_SWR=m"
+  "qcom/opensource/camera-kernel|"
+  "qcom/opensource/dataipa|"
+  "qcom/opensource/datarmnet|"
+  "qcom/opensource/spu-kernel|CONFIG_MSM_SPCOM=m CONFIG_MSM_SPSS_UTILS=m"
   "nxp/opensource/driver|"
 )
 
@@ -98,6 +98,7 @@ for entry in "${MODULES[@]}"; do
          INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$MODULES_STAGE" modules_install
   ) > "$log" 2>&1; then
     echo "FAIL  $rel (log: $log)"
+    tail -30 "$log" | sed 's/^/      /'
     failed=$((failed+1))
     continue
   fi
