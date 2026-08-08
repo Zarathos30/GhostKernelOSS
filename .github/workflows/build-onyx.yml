@@ -189,6 +189,7 @@ jobs:
           OUT_DIR: ${{ github.workspace }}/xiaomi/sm8735/out
           MODULES_DIR: ${{ github.workspace }}/xiaomi/sm8735-modules
           MODULES_STAGE: ${{ github.workspace }}/xiaomi/sm8735/out/modules_stage
+          CLANG_DIR: ${{ github.workspace }}/prebuilts/clang/host/linux-x86/clang-${{ inputs.clang_version }}
           CCACHE: '1'
         run: |
           bash scripts/build_vendor_modules.sh 2>&1 | tee -a build.log

@@ -17,6 +17,7 @@
 #   KERNEL_DIR    kernel source tree
 #   OUT_DIR       build output dir (must contain .config from build_kernel.sh)
 #   MODULES_DIR   vendor module sources (containing qcom/opensource)
+#   CLANG_DIR     AOSP clang prebuilt root (containing bin/clang; optional)
 #   JOBS          make parallelism (default: nproc)
 #   MODULES_STAGE module staging dir (default: $OUT_DIR/modules_stage)
 
@@ -25,6 +26,7 @@ set -uo pipefail
 KERNEL_DIR=${KERNEL_DIR:-}
 OUT_DIR=${OUT_DIR:-}
 MODULES_DIR=${MODULES_DIR:-}
+CLANG_DIR=${CLANG_DIR:-}
 JOBS=${JOBS:-$(nproc)}
 MODULES_STAGE=${MODULES_STAGE:-"$OUT_DIR/modules_stage"}
 
@@ -32,6 +34,10 @@ MODULES_STAGE=${MODULES_STAGE:-"$OUT_DIR/modules_stage"}
 [ -n "$OUT_DIR" ] || { echo "ERROR: OUT_DIR required" >&2; exit 1; }
 [ -d "$MODULES_DIR/qcom/opensource" ] || { echo "ERROR: MODULES_DIR/qcom/opensource not found: $MODULES_DIR" >&2; exit 1; }
 [ -f "$OUT_DIR/.config" ] || { echo "ERROR: $OUT_DIR/.config not found. Run build_kernel.sh first." >&2; exit 1; }
+
+if [ -n "$CLANG_DIR" ]; then
+  export PATH="$CLANG_DIR/bin:$PATH"
+fi
 
 export ARCH=arm64
 export SUBARCH=arm64
@@ -93,8 +99,8 @@ for entry in "${MODULES[@]}"; do
 
   echo "==> Building $rel ..."
   if ! ( cd "$KERNEL_DIR"
-    make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" M="$moddir" $makevars modules \
-      && make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" M="$moddir" $makevars \
+    make -C "$moddir" KERNEL_SRC="$KERNEL_DIR" O="$OUT_DIR" M="$moddir" "${CCACHE_ARGS[@]}" $makevars modules \
+      && make -C "$moddir" KERNEL_SRC="$KERNEL_DIR" O="$OUT_DIR" M="$moddir" "${CCACHE_ARGS[@]}" $makevars \
          INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$MODULES_STAGE" modules_install
   ) > "$log" 2>&1; then
     echo "FAIL  $rel (log: $log)"
