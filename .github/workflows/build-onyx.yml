@@ -241,5 +241,5 @@ jobs:
           TAG="onyx-${KERNEL_VER}${SUFFIX}"
           ZIP_PATH="${{ steps.pack.outputs.ZIP_PATH }}"
           echo "Creating release: $TAG with $ZIP_PATH"
-          gh release create "$TAG" "$ZIP_PATH" --repo "$GITHUB_REPOSITORY" \
+          gh release create "$TAG" "$ZIP_PATH" --repo "$GITHUB_REPOSITORY" --force \
             --title "GhostKernelOSS onyx $KERNEL_VER$SUFFIX"
