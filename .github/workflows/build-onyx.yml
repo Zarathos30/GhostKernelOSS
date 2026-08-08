@@ -76,6 +76,7 @@ jobs:
           sudo apt-get clean
 
       - name: Download kernel source (if not committed)
+        id: src
         run: |
           set -euo pipefail
           if [ -f xiaomi/sm8735/Makefile ]; then
@@ -211,16 +212,20 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-onyx-${{ steps.kernel.outputs.KERNEL_VER }}
+          name: build-log-onyx-${{ steps.src.outputs.KERNEL_VER }}
           path: build.log
           if-no-files-found: ignore
 
       - name: Create GitHub Release
         if: ${{ inputs.do_release == true }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: onyx-${{ steps.kernel.outputs.KERNEL_VER }}${{ inputs.version_tag }}
-          name: GhostKernelOSS onyx ${{ steps.kernel.outputs.KERNEL_VER }}${{ inputs.version_tag }}
-          generate_release_notes: false
-          files: |
-            ${{ steps.pack.outputs.ZIP_PATH }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          KERNEL_VER="${{ steps.src.outputs.KERNEL_VER }}"
+          SUFFIX="${{ inputs.version_tag }}"
+          TAG="onyx-${KERNEL_VER}${SUFFIX}"
+          ZIP_PATH="${{ steps.pack.outputs.ZIP_PATH }}"
+          echo "Creating release: $TAG with $ZIP_PATH"
+          gh release create "$TAG" "$ZIP_PATH" --repo "$GITHUB_REPOSITORY" \
+            --title "GhostKernelOSS onyx $KERNEL_VER$SUFFIX"
