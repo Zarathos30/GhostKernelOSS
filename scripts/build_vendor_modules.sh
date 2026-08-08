@@ -73,9 +73,10 @@ MODULES=(
   "qcom/opensource/wlan/fw-api||all"
   "qcom/opensource/wlan/qca-wifi-host-cmn||all"
   "qcom/opensource/wlan/qcacld-3.0|CONFIG_QCA_CLD_WLAN=m|all"
-  "qcom/opensource/bt-kernel|CONFIG_MSM_BT_POWER=m CONFIG_BTFM_SLIM=m CONFIG_I2C_RTC6226_QCA=m CONFIG_BTFM_CODEC=m CONFIG_SLIM_BTFM_CODEC=m CONFIG_BTFM_SWR=m|all"
+  "qcom/opensource/bt-kernel|CONFIG_MSM_BT_POWER=m CONFIG_BTFM_CODEC=m CONFIG_BTFM_SWR=m CONFIG_SLIM_BTFM_CODEC=m|all"
   "qcom/opensource/camera-kernel||all"
-  "qcom/opensource/dataipa||direct"
+  "qcom/opensource/datarmnet-ext||all"
+  "qcom/opensource/dataipa|KBUILD_EXTRA_SYMBOLS=vendor-modules/qcom/opensource/datarmnet-ext/Module.symvers|direct"
   "qcom/opensource/datarmnet||all"
   "qcom/opensource/spu-kernel|CONFIG_MSM_SPCOM=m CONFIG_MSM_SPSS_UTILS=m|all"
   "nxp/opensource/driver||all"
@@ -141,6 +142,12 @@ for entry in "${MODULES[@]}"; do
   if [ "$rel" = "qcom/opensource/display-drivers" ]; then
     mkdir -p "$moddir/msm"
     [ -f "$moddir/msm/Module.symvers" ] || touch "$moddir/msm/Module.symvers"
+  fi
+  # dataipa's modules build under drivers/platform/msm/ but modpost writes
+  # its symvers at the module root; qcacld expects the msm/ path - mirror it
+  if [ "$rel" = "qcom/opensource/dataipa" ]; then
+    mkdir -p "$moddir/drivers/platform/msm"
+    cp -f "$moddir/Module.symvers" "$moddir/drivers/platform/msm/Module.symvers"
   fi
   built=$((built+1))
 done
