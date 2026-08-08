@@ -54,6 +54,23 @@ else
   echo "==> dtb/dtbo skipped (not built; stock dtb/dtbo in boot/dtbo are kept by AnyKernel3)"
 fi
 
+# Kernel modules (in-tree + vendor): staged .ko go into the boot ramdisk via
+# the AnyKernel3 rdtmp/ overlay. Only .ko files are shipped: stock
+# modules.dep/modules.load in the ramdisk are left untouched.
+if [ -n "${MODULES_STAGE:-}" ] && [ -d "$MODULES_STAGE/lib/modules" ]; then
+  KVER_DIR=$(find "$MODULES_STAGE/lib/modules" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)
+  if [ -n "$KVER_DIR" ]; then
+    ko_count=$(find "$KVER_DIR" -maxdepth 1 -name "*.ko" 2>/dev/null | wc -l)
+    if [ "$ko_count" -gt 0 ]; then
+      MODDIR="$STAGING_DIR/rdtmp/lib/modules/$(basename "$KVER_DIR")"
+      echo "==> Adding $ko_count kernel modules to boot ramdisk (rdtmp overlay)"
+      mkdir -p "$MODDIR"
+      cp "$KVER_DIR"/*.ko "$MODDIR"/
+      echo "  + rdtmp/lib/modules/$(basename "$KVER_DIR")/"
+    fi
+  fi
+fi
+
 VERSION_TAG="${ZIP_SUFFIX:-}"
 ZIP_NAME="GhostKernelOSS-onyx-${KERNEL_VERSION}${VERSION_TAG}.zip"
 ZIP_PATH="$OUT_DIR/$ZIP_NAME"

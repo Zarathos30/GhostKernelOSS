@@ -93,11 +93,11 @@ if [ -d "$MODULES_DIR/qcom/opensource" ]; then
 fi
 
 if [ "$HAS_DTB" = "1" ]; then
-  echo "==> Building Image and dtbs"
-  MAKE_GOALS="Image dtbs"
+  echo "==> Building Image, dtbs and modules"
+  MAKE_GOALS="Image dtbs modules"
 else
-  echo "==> Building Image (dtbs skipped: vendor module headers not found at $MODULES_DIR)"
-  MAKE_GOALS="Image"
+  echo "==> Building Image and modules (dtbs skipped: vendor module headers not found at $MODULES_DIR)"
+  MAKE_GOALS="Image modules"
 fi
 ( cd "$KERNEL_DIR"
   make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" $MAKE_GOALS
@@ -106,10 +106,24 @@ fi
 IMAGE="$OUT_DIR/arch/arm64/boot/Image"
 [ -f "$IMAGE" ] || { echo "ERROR: kernel Image not built" >&2; exit 1; }
 
+# In-tree modules (CONFIG_*=m): install into a staging dir for the zip
+MODULES_STAGE="$OUT_DIR/modules_stage"
+rm -rf "$MODULES_STAGE"
+mkdir -p "$MODULES_STAGE"
+echo "==> Installing in-tree modules to $MODULES_STAGE"
+( cd "$KERNEL_DIR"
+  make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" \
+    INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$MODULES_STAGE" modules_install
+)
+KO_COUNT=$(find "$MODULES_STAGE/lib/modules" -name "*.ko" 2>/dev/null | wc -l)
+echo "    in-tree .ko staged: $KO_COUNT"
+
 echo "==> Build complete"
 ls -lh "$IMAGE"
 
 KV=$(grep -E '^VERSION\s*=|^PATCHLEVEL\s*=|^SUBLEVEL\s*=' "$KERNEL_DIR/Makefile" | awk '{print $3}' | paste -sd.)
+KVER=${KVER:-$(grep -E '^CONFIG_LOCALVERSION="' "$OUT_DIR/.config" | sed 's/^CONFIG_LOCALVERSION="\(.*\)"/\1/')}
+KVER="$KV$KVER"
 cat > "$OUT_DIR/build.env" <<EOF
 KERNEL_DIR=$KERNEL_DIR
 OUT_DIR=$OUT_DIR
@@ -119,4 +133,6 @@ DTB_TUNA=$OUT_DIR/arch/arm64/boot/dts/vendor/qcom/tuna.dtb
 DTB_TUNA7=$OUT_DIR/arch/arm64/boot/dts/vendor/qcom/tuna7.dtb
 DTBO_ONYX=$OUT_DIR/arch/arm64/boot/dts/vendor/qcom/onyx-sm8735-overlay.dtbo
 KERNEL_VERSION=$KV
+KVER=$KVER
+MODULES_STAGE=$MODULES_STAGE
 EOF

@@ -181,6 +181,19 @@ jobs:
           bash scripts/build_kernel.sh 2>&1 | tee build.log
           tail -3 build.log
 
+      - name: Build vendor modules (best-effort)
+        continue-on-error: true
+        timeout-minutes: 300
+        env:
+          KERNEL_DIR: ${{ github.workspace }}/xiaomi/sm8735
+          OUT_DIR: ${{ github.workspace }}/xiaomi/sm8735/out
+          MODULES_DIR: ${{ github.workspace }}/xiaomi/sm8735-modules
+          MODULES_STAGE: ${{ github.workspace }}/xiaomi/sm8735/out/modules_stage
+          CCACHE: '1'
+        run: |
+          bash scripts/build_vendor_modules.sh 2>&1 | tee -a build.log
+          tail -5 build.log
+
       - name: Pack AnyKernel3 zip
         id: pack
         env:
