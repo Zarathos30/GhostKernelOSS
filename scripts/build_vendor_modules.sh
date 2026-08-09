@@ -58,7 +58,7 @@ fi
 MODULES=(
   "qcom/opensource/mm-drivers/hw_fence||all"
   "qcom/opensource/mmrm-driver||all"
-  "qcom/opensource/securemsm-kernel||all"
+  "qcom/opensource/securemsm-kernel|CONFIG_HDCP_QSEECOM=m|all"
   "qcom/opensource/synx-kernel||all"
   "qcom/opensource/mm-drivers/msm_ext_display||all"
   "qcom/opensource/dsp-kernel||all"
@@ -66,7 +66,7 @@ MODULES=(
   "qcom/opensource/graphics-kernel|CONFIG_QCOM_KGSL=m|all"
   "qcom/opensource/video-driver||all"
   "qcom/opensource/eva-kernel||all"
-  "qcom/opensource/display-drivers|CONFIG_DRM_MSM=m DISPLAY_ROOT=$MODULES_DIR/qcom/opensource/display-drivers|all"
+  "qcom/opensource/display-drivers|CONFIG_DRM_MSM=m DISPLAY_ROOT=$MODULES_DIR/qcom/opensource/display-drivers KBUILD_EXTRA_SYMBOLS=vendor-modules/qcom/opensource/securemsm-kernel/Module.symvers|all"
   "qcom/opensource/touch-drivers|CONFIG_MSM_TOUCH=m|all"
   "qcom/opensource/data-kernel/drivers/smem-mailbox||all"
   "qcom/opensource/wlan/platform||all"
