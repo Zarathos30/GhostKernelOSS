@@ -61,12 +61,13 @@ MODULES=(
   "qcom/opensource/securemsm-kernel|CONFIG_HDCP_QSEECOM=m|all"
   "qcom/opensource/synx-kernel||all"
   "qcom/opensource/mm-drivers/msm_ext_display||all"
+  "qcom/opensource/mm-drivers/sync_fence||all"
   "qcom/opensource/dsp-kernel||all"
   "qcom/opensource/audio-kernel|CONFIG_SND_SOC_SUN=m|all"
   "qcom/opensource/graphics-kernel|CONFIG_QCOM_KGSL=m|all"
   "qcom/opensource/video-driver||all"
   "qcom/opensource/eva-kernel||all"
-  "qcom/opensource/display-drivers|CONFIG_DRM_MSM=m DISPLAY_ROOT=$MODULES_DIR/qcom/opensource/display-drivers KBUILD_EXTRA_SYMBOLS=vendor-modules/qcom/opensource/securemsm-kernel/Module.symvers|all"
+  "qcom/opensource/display-drivers|CONFIG_DRM_MSM=m DISPLAY_ROOT=$MODULES_DIR/qcom/opensource/display-drivers|all"
   "qcom/opensource/touch-drivers|CONFIG_MSM_TOUCH=m|all"
   "qcom/opensource/data-kernel/drivers/smem-mailbox||all"
   "qcom/opensource/wlan/platform||all"
@@ -95,6 +96,12 @@ mkdir -p "$LOG_DIR" "$MODULES_STAGE"
 built=0
 failed=0
 skipped=0
+# Module.symvers of every module built so far, in objtree-relative form.
+# Exported as KBUILD_EXTRA_SYMBOLS so modpost of later modules (display,
+# touch, ...) can resolve cross-module symbols. Modules whose top-level
+# Makefile sets KBUILD_EXTRA_SYMBOLS themselves keep their own value
+# ('=' overrides the environment, '+=' appends to it).
+EXTRAS=""
 
 for entry in "${MODULES[@]}"; do
   IFS='|' read -r rel makevars tgt <<< "$entry"
@@ -109,6 +116,7 @@ for entry in "${MODULES[@]}"; do
   fi
 
   echo "==> Building $rel ..."
+  export KBUILD_EXTRA_SYMBOLS="$EXTRAS"
   if [ "$tgt" = "direct" ]; then
     if ! ( cd "$KERNEL_DIR"
       make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" M="$M" $makevars modules \
@@ -149,6 +157,7 @@ for entry in "${MODULES[@]}"; do
     mkdir -p "$moddir/drivers/platform/msm"
     cp -f "$moddir/Module.symvers" "$moddir/drivers/platform/msm/Module.symvers"
   fi
+  EXTRAS="$EXTRAS vendor-modules/$rel/Module.symvers"
   built=$((built+1))
 done
 
