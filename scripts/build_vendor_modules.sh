@@ -66,17 +66,17 @@ MODULES=(
   "qcom/opensource/graphics-kernel|CONFIG_QCOM_KGSL=m|all"
   "qcom/opensource/video-driver||all"
   "qcom/opensource/eva-kernel||all"
-  "qcom/opensource/display-drivers|CONFIG_DRM_MSM=m|all"
+  "qcom/opensource/display-drivers|CONFIG_DRM_MSM=m DISPLAY_ROOT=$MODULES_DIR/qcom/opensource/display-drivers|all"
   "qcom/opensource/touch-drivers|CONFIG_MSM_TOUCH=m|all"
   "qcom/opensource/data-kernel/drivers/smem-mailbox||all"
   "qcom/opensource/wlan/platform||all"
+  "qcom/opensource/datarmnet-ext/mem||all"
+  "qcom/opensource/dataipa|KBUILD_EXTRA_SYMBOLS=vendor-modules/qcom/opensource/datarmnet-ext/mem/Module.symvers|direct"
   "qcom/opensource/wlan/fw-api||all"
   "qcom/opensource/wlan/qca-wifi-host-cmn||all"
   "qcom/opensource/wlan/qcacld-3.0|CONFIG_QCA_CLD_WLAN=m|all"
   "qcom/opensource/bt-kernel|CONFIG_MSM_BT_POWER=m CONFIG_BTFM_CODEC=m CONFIG_BTFM_SWR=m CONFIG_SLIM_BTFM_CODEC=m|all"
   "qcom/opensource/camera-kernel||all"
-  "qcom/opensource/datarmnet-ext/mem||all"
-  "qcom/opensource/dataipa|KBUILD_EXTRA_SYMBOLS=vendor-modules/qcom/opensource/datarmnet-ext/mem/Module.symvers|direct"
   "qcom/opensource/datarmnet||all"
   "qcom/opensource/spu-kernel|CONFIG_MSM_SPCOM=m CONFIG_MSM_SPSS_UTILS=m|all"
   "nxp/opensource/driver||all"
@@ -141,7 +141,7 @@ for entry in "${MODULES[@]}"; do
   [ -f "$moddir/Module.symvers" ] || touch "$moddir/Module.symvers"
   if [ "$rel" = "qcom/opensource/display-drivers" ]; then
     mkdir -p "$moddir/msm"
-    [ -f "$moddir/msm/Module.symvers" ] || touch "$moddir/msm/Module.symvers"
+    cp -f "$moddir/Module.symvers" "$moddir/msm/Module.symvers"
   fi
   # dataipa's modules build under drivers/platform/msm/ but modpost writes
   # its symvers at the module root; qcacld expects the msm/ path - mirror it
