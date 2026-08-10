@@ -5,14 +5,21 @@
 # GhostKernelOSS - AnyKernel3 packaging for POCO F7 (onyx)
 #
 # Packs the built kernel into a flashable AnyKernel3 zip:
-#   Image         -> boot.img kernel (header v4, stock ramdisk/modules preserved)
-#   dtb.img       -> boot.img dtb section (tuna.dtb + tuna7.dtb)   [if built]
-#   dtbo.img      -> dtbo partition (onyx-sm8735-overlay.dtbo)     [if built]
+#   Image         -> boot.img kernel (header v4; onyx boot.img has NO
+#                    ramdisk - it lives in init_boot.img, dtb + vendor
+#                    modules live in vendor_boot.img, so boot gets only
+#                    the kernel and everything else stays stock)
+#   dtb.img       -> tuna.dtb + tuna7.dtb [if built]; re-appended by
+#                    anykernel.sh only if the stock kernel area contains
+#                    an appended dtb (Image-dtb style)
+#
+# NOTE: no modules are staged into a ramdisk anymore: on onyx there is no
+# boot ramdisk, and the stock modules in vendor_boot (same config, vermagic
+# CRC ignores the version part) keep loading on the GhostKernelOSS kernel.
 #
 # Required environment:
 #   OUT_DIR     build output dir (must contain build.env from build_kernel.sh)
 #   AK3_DIR     AnyKernel3 template dir (default: this repo's AnyKernel3/)
-#   MKDTBOIMG   mkdtboimg binary (optional; dtbo skipped if missing)
 #   ZIP_SUFFIX  extra suffix for the zip name (optional)
 
 set -euo pipefail
@@ -22,7 +29,6 @@ ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 . "$OUT_DIR/build.env"
 
 AK3_DIR=${AK3_DIR:-"$ROOT_DIR/AnyKernel3"}
-MKDTBOIMG=${MKDTBOIMG:-}
 ZIP_SUFFIX=${ZIP_SUFFIX:-}
 
 [ -f "$IMAGE" ] || { echo "ERROR: kernel Image not found: $IMAGE" >&2; exit 1; }
@@ -44,40 +50,14 @@ if [ "${HAS_DTB:-0}" = "1" ]; then
       echo "  + $(basename "$dtb")"
     fi
   done
-
-  echo "==> Building dtbo.img (onyx overlay)"
-  if [ -n "$MKDTBOIMG" ] && [ -f "$DTBO_ONYX" ]; then
-    "$MKDTBOIMG" create "$STAGING_DIR/dtbo.img" --page_size=4096 "$DTBO_ONYX"
-    echo "  + onyx-sm8735-overlay.dtbo"
-  fi
 else
-  echo "==> dtb/dtbo skipped (not built; stock dtb/dtbo in boot/dtbo are kept by AnyKernel3)"
+  echo "==> dtb.img skipped (not built; stock dtb in vendor_boot is kept by AnyKernel3)"
 fi
 
-# Kernel modules (in-tree + vendor): staged .ko go into the boot ramdisk via
-# the AnyKernel3 rdtmp/ overlay. Only .ko files are shipped: stock
-# modules.dep/modules.load in the ramdisk are left untouched.
-if [ -n "${MODULES_STAGE:-}" ] && [ -d "$MODULES_STAGE/lib/modules" ]; then
-  KVER_DIR=$(find "$MODULES_STAGE/lib/modules" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)
-  if [ -n "$KVER_DIR" ]; then
-    ko_count=$(find "$KVER_DIR" -name "*.ko" 2>/dev/null | wc -l)
-    if [ "$ko_count" -gt 0 ]; then
-      echo "==> Adding $ko_count kernel modules to boot ramdisk (rdtmp overlay)"
-      mkdir -p "$STAGING_DIR/rdtmp"
-      ( cd "$MODULES_STAGE" && find lib/modules -name "*.ko" -exec cp --parents {} "$STAGING_DIR/rdtmp/" \; )
-      echo "  + rdtmp/lib/modules/$(basename "$KVER_DIR")/..."
-    else
-      echo "==> WARNING: modules staging exists but is empty ($KVER_DIR)"
-      echo "    no .ko shipped in this zip"
-    fi
-  else
-    echo "==> WARNING: no module release dir under $MODULES_STAGE/lib/modules"
-    echo "    no .ko shipped in this zip"
-  fi
-elif [ -n "${MODULES_STAGE:-}" ]; then
-  echo "==> WARNING: $MODULES_STAGE/lib/modules not found"
-  echo "    no .ko shipped in this zip"
-fi
+# NOTE: no modules are staged into a boot ramdisk (rdtmp): onyx boot.img
+# has no ramdisk (ramdisk is in init_boot, modules in vendor_boot) and the
+# stock modules in vendor_boot are config-identical to our build, so they
+# load on the GhostKernelOSS kernel as-is.
 
 VERSION_TAG="${ZIP_SUFFIX:-}"
 ZIP_NAME="GhostKernelOSS-onyx-${KERNEL_VERSION}${VERSION_TAG}.zip"
