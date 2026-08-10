@@ -103,6 +103,27 @@ skipped=0
 # ('=' overrides the environment, '+=' appends to it).
 EXTRAS=""
 
+# Textually normalize a path (collapse '..' and '.') without touching the
+# filesystem, so it matches the objtree-relative EXTRAS entries.
+normalize_path() {
+  local p="$1" seg
+  local -a stack=()
+  local IFS='/'
+  for seg in $p; do
+    case "$seg" in
+      ""|".") ;;
+      "..")
+        if [ "${#stack[@]}" -gt 0 ]; then
+          stack=("${stack[@]:0:${#stack[@]}-1}")
+        fi
+        ;;
+      *) stack+=("$seg") ;;
+    esac
+  done
+  printf -v out '/%s' "${stack[@]}"
+  echo "${out#/}"
+}
+
 for entry in "${MODULES[@]}"; do
   IFS='|' read -r rel makevars tgt <<< "$entry"
   moddir="$MODULES_DIR/$rel"
@@ -116,7 +137,32 @@ for entry in "${MODULES[@]}"; do
   fi
 
   echo "==> Building $rel ..."
+  # Export the accumulated Module.symvers list. Modules whose top-level
+  # Makefile appends symvers with 'KBUILD_EXTRA_SYMBOLS+=' would re-add paths
+  # already in EXTRAS -> modpost "exported twice". Strip those paths from the
+  # exported value; a plain '=' in the Makefile overrides the env anyway.
   export KBUILD_EXTRA_SYMBOLS="$EXTRAS"
+  if [ -f "$moddir/Makefile" ] && grep -q 'KBUILD_EXTRA_SYMBOLS+=' "$moddir/Makefile"; then
+    while IFS= read -r line; do
+      case "$line" in
+        *'KBUILD_EXTRA_SYMBOLS='*) ;;
+        *'KBUILD_EXTRA_SYMBOLS+='*)
+          p=${line#*KBUILD_EXTRA_SYMBOLS+=}
+          p=${p%% *}
+          case "$p" in
+            \$\(M\)/*)
+              p=${p//\$\(M\)/$M}
+              p=$(normalize_path "$p")
+              KBUILD_EXTRA_SYMBOLS=" $KBUILD_EXTRA_SYMBOLS "
+              KBUILD_EXTRA_SYMBOLS=${KBUILD_EXTRA_SYMBOLS//" $p "/" "}
+              KBUILD_EXTRA_SYMBOLS=${KBUILD_EXTRA_SYMBOLS# }
+              KBUILD_EXTRA_SYMBOLS=${KBUILD_EXTRA_SYMBOLS% }
+              ;;
+          esac
+          ;;
+      esac
+    done < "$moddir/Makefile"
+  fi
   if [ "$tgt" = "direct" ]; then
     if ! ( cd "$KERNEL_DIR"
       make -j"$JOBS" O="$OUT_DIR" "${CCACHE_ARGS[@]}" M="$M" $makevars modules \
