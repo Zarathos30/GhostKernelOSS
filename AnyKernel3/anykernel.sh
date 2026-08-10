@@ -33,11 +33,6 @@ no_magisk_check=1
 . tools/ak3-core.sh
 
 ui_print " "
-ui_print "   ___ _           _   _  __                 _  ___  ___ ___ "
-ui_print "  / __| |_  ___ __| |_| |/ /___ _ _ _ _  ___| |/ _ \/ __/ __|"
-ui_print "| (_ | '\'' \/ _ (_-<  _| | '\'' </ -_) '\''_| '\'' \/ -_) | (_) \__ \__ \";
-ui_print "  \___|_||_\___/__/\__|_|\_\___|_| |_||_\___|_|\___/|___/___/";
-ui_print " "
 ui_print "GhostKernelOSS by Zarathos30 | POCO F7 (onyx) | SM8735"
 ui_print " "
 
